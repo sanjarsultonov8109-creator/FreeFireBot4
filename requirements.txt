@@ -1,3 +1,5 @@
-aiogram==3.0.0b7
-aiohttp==3.8.6
-python-dotenv==1.0.0
+aiogram==3.4.1
+aiosqlite==0.20.0
+python-dotenv==1.0.1
+openai>=1.0.0,<2.0.0   # ixtiyoriy: AI uchun
+python-decouple
