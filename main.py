@@ -586,33 +586,23 @@ async def cmd_start(message: Message, state: FSMContext):
         return
 
     # ============================================================
-        # ============================================================
-    #   🔥 1) REFERRAL ID-ni TO‘G‘RI ANIQLAYMIZ
+    #   🔥 1) REFERRAL ID-ni TO'G'RI ANIQLAYMIZ
     # ============================================================
     ref_id = None
-
-    # /start dan keyin kelgan hamma narsani olamiz
     payload = (message.text or "").replace("/start", "", 1).strip()
 
-    # Masalan:
-    #  - "/start ref_123"
-    #  - "/start ref_123 bla-bla"
-    #  - "/start 123456789"
-    #  - "/start ref_123@SizningBot"
     if payload:
-        first = payload.split()[0]   # faqat birinchi so‘zni olamiz
+        first = payload.split()[0]
 
         if first.startswith("ref_"):
             # ref_123?aa @bot kabi holatlarni tozalab olamiz
-            cleaned = first.split("\n")[0]
-            cleaned = cleaned.split("?")[0]
-            cleaned = cleaned.split("@")[0]
+            cleaned = first.split("\n")[0].split("?")[0].split("@")[0]
             try:
                 ref_id = int(cleaned.replace("ref_", ""))
             except:
                 ref_id = None
 
-        # Agar oddiy faqat raqam bo‘lsa: "/start 123456789"
+        # Agar oddiy faqat raqam bo'lsa: "/start 123456789"
         elif first.isdigit():
             ref_id = int(first)
 
@@ -620,45 +610,57 @@ async def cmd_start(message: Message, state: FSMContext):
     if ref_id == user_id:
         ref_id = None
 
-
     # ============================================
-    #   🔥 FOYDALANUVCHI YANGIMI? — TO‘G‘RI ANIQLASH
+    #   🔥 2) FOYDALANUVCHI YANGIMI? — TO'G'RI ANIQLASH
     # ============================================
     existing_before = await get_user(user_id)
     was_created = existing_before is None
 
-    # userni bazaga yozamiz
-    await add_user(user_id, message.from_user.username, ref_id)
-    await set_ref_by_if_empty(user_id, ref_id)
+    # Userni bazaga yozamiz (ref_id ni shu joyda yubormaymiz)
+    await add_user(user_id, message.from_user.username, None)
 
+    # Agar bazada ref_by bo'sh bo'lsa va payload orqali ref_id bo'lsa — set qilamiz
+    if ref_id:
+        await set_ref_by_if_empty(user_id, ref_id)
+
+    # DBdan yangilab olamiz
     existing_after = await get_user(user_id)
-
     is_new = was_created
 
-
     # ============================================================
-    #   🔥 3) Agar yangi user va real referrer bo‘lsa → referral yozamiz
+    #   🔥 3) Agar yangi user va real referrer bo'lsa → referral yozamiz
     # ============================================================
     if is_new and ref_id:
-        await create_referral(ref_id, user_id)
+        # Qo'shimcha tekshiruv: DBda ref_by haqiqatan ref_id ekanligini tasdiqlaymiz
+        actual_ref = await get_ref_by(user_id)
 
-        # --------------- 1-XABAR (Yangi Taklif) ---------------
         try:
-            invited_label = format_user_short(message.from_user.first_name, message.from_user.username)
-            reward = await get_referral_reward()
+            if actual_ref and actual_ref == ref_id:
+                await create_referral(ref_id, user_id)
 
-            await bot.send_message(
-                ref_id,
-                "🧑‍🤝‍🧑 <b>Yangi taklif!</b>\n\n"
-                f"Siz taklif qilgan {invited_label} botga qo‘shildi.\n"
-                "Endi u kanalga a’zo bo‘lish, captcha va telefon raqam tekshiruvlaridan "
-                "muvaffaqiyatli o‘tsa —\n"
-                f"sizga <b>{reward} Almaz</b> taqdim qilinadi! 💎",
-                parse_mode="HTML"
-            )
+                # --------------- 1-XABAR (Yangi Taklif) ---------------
+                try:
+                    invited_label = format_user_short(
+                        message.from_user.first_name,
+                        message.from_user.username
+                    )
+                    reward = await get_referral_reward()
+
+                    await bot.send_message(
+                        ref_id,
+                        "🧑‍🤝‍🧑 <b>Yangi taklif!</b>\n\n"
+                        f"Siz taklif qilgan {invited_label} botga qo‘shildi.\n"
+                        "Endi u kanalga a’zo bo‘lish, captcha va telefon raqam tekshiruvlaridan "
+                        "muvaffaqiyatli o‘tsa —\n"
+                        f"sizga <b>{reward} Almaz</b> taqdim qilinadi! 💎",
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    log.warning("Referral 1-xabar error: %s", e)
+            else:
+                log.info(f"Referral not created: actual_ref={actual_ref}, expected={ref_id}")
         except Exception as e:
-            print("Referral 1-xabar error:", e)
-            pass
+            log.warning("Referral creation skipped/failed: %s", e)
 
     # ============================================================
     #   🔥 4) Agar user verified bo‘lmagan bo‘lsa → Captcha
@@ -678,6 +680,7 @@ async def cmd_start(message: Message, state: FSMContext):
         )
         return
 
+
     # ============================================================
     #   🔥 5) Verified user → menyu
     # ============================================================
@@ -686,7 +689,7 @@ async def cmd_start(message: Message, state: FSMContext):
         "Siz barcha tekshiruvlardan muvaffaqiyatli o‘tdingiz — endi botning barcha imkoniyatlari ochildi. 🚀\n\n"
         "Quyidagi menyudan keragini tanlang 👇",
         reply_markup=main_menu
-    )
+)
 
 # ==================== CAPTCHA ====================
 @dp.message(VerifyStates.CAPTCHA)

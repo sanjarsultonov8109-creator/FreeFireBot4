@@ -590,4 +590,3 @@ async def set_setting(key: str, value: str):
             ON CONFLICT(key) DO UPDATE SET value=excluded.value
         """, (key, value))
         await db.commit()
-
